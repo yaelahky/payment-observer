@@ -1,0 +1,4 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base theme applied before Compose draws. Compose (PaymentObserverTheme) drives the colors. -->
+    <style name="Theme.PaymentObserver" parent="Theme.Material3.DayNight.NoActionBar" />
+</resources>
