@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">Payment Observer</string>
-    <string name="notification_listener_label">Payment Observer — ShopeePay Listener</string>
+    <string name="notification_listener_label">Payment Observer — Payment Listener</string>
 </resources>
