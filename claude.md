@@ -305,10 +305,42 @@ Versi utama:
 | `minSdk` | 21 |
 | Java target | 11 |
 
-Verifikasi lokal:
+Build APK release yang sudah ditandatangani:
 
 ```shell
-./gradlew testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest
+./gradlew assembleRelease
+```
+
+APK siap dipasang tersedia di:
+
+```text
+app/build/outputs/apk/release/app-release.apk
+```
+
+Konfigurasi signing berada di `keystore.properties` dan keystore PKCS12 berada di
+`keystore/payment-observer-release.jks`. Keduanya harus dipertahankan untuk menandatangani seluruh
+update aplikasi berikutnya. Karena kredensial dan keystore disimpan di repo, setiap orang yang
+memiliki akses repo dapat menghasilkan APK dengan identitas signing yang sama.
+
+Verifikasi signature dan sertifikat APK dengan Android SDK Build Tools:
+
+```shell
+$ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose --print-certs \
+  app/build/outputs/apk/release/app-release.apk
+keytool -list -v \
+  -keystore keystore/payment-observer-release.jks \
+  -storepass "$(sed -n 's/^storePassword=//p' keystore.properties)" \
+  -alias payment-observer-release
+```
+
+Nilai `Signer #1 certificate SHA-256 digest` dari `apksigner` harus sama dengan nilai
+`SHA256` dari `keytool`.
+
+Verifikasi lokal lengkap:
+
+```shell
+./gradlew testDebugUnitTest assembleDebugAndroidTest
+./gradlew lintRelease assembleRelease
 ```
 
 Instrumentation test pada perangkat/emulator:

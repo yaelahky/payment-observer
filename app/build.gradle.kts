@@ -1,9 +1,21 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.kapt)
 }
+
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.isFile) {
+        keystorePropertiesFile.inputStream().use(::load)
+    }
+}
+val releaseKeystoreFile = keystoreProperties.getProperty("storeFile")
+    ?.takeIf(String::isNotBlank)
+    ?.let(rootProject::file)
 
 android {
     namespace = "com.fgteam.paymentobserver"
@@ -19,8 +31,18 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = releaseKeystoreFile
+            storePassword = keystoreProperties.getProperty("storePassword")
+            keyAlias = keystoreProperties.getProperty("keyAlias")
+            keyPassword = keystoreProperties.getProperty("keyPassword")
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -45,6 +67,34 @@ android {
         buildConfigField("String", "API_BASE_URL", "\"https://api-prod.fgteam.my.id/\"")
         buildConfigField("String", "BASIC_AUTH_USERNAME", "\"fgteam\"")
         buildConfigField("String", "BASIC_AUTH_PASSWORD", "\"063c95fa-db5c-4a6c-8063-a91d2542a861\"")
+    }
+}
+
+gradle.taskGraph.whenReady {
+    if (allTasks.any { it.name.contains("Release", ignoreCase = true) }) {
+        if (!keystorePropertiesFile.isFile) {
+            throw GradleException(
+                "Release signing configuration is unavailable: " +
+                    "${keystorePropertiesFile.path} does not exist."
+            )
+        }
+
+        val requiredProperties = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+        val missingProperties = requiredProperties.filter {
+            keystoreProperties.getProperty(it).isNullOrBlank()
+        }
+        if (missingProperties.isNotEmpty()) {
+            throw GradleException(
+                "Release signing configuration is unavailable: missing " +
+                    missingProperties.joinToString() + " in ${keystorePropertiesFile.path}."
+            )
+        }
+        if (releaseKeystoreFile?.isFile != true) {
+            throw GradleException(
+                "Release signing configuration is unavailable: keystore " +
+                    "${releaseKeystoreFile?.path ?: "<not configured>"} does not exist."
+            )
+        }
     }
 }
 
