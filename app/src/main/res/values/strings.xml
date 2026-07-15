@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">Payment Observer</string>
-    <string name="notification_listener_label">Payment Observer — Payment Listener</string>
+    <string name="app_name">FG Payment Gateway</string>
+    <string name="notification_listener_label">FG Payment Gateway</string>
     <string name="observer_channel_name">Status Payment Observer</string>
     <string name="observer_channel_description">Menampilkan status pemantauan notifikasi pembayaran.</string>
     <string name="observer_notification_title">Payment Observer aktif</string>
