@@ -6,6 +6,9 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.time.LocalDateTime
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -77,6 +80,19 @@ class PaymentObserverDatabaseTest {
             ).first()
         )
         assertEquals(-1L, database.paymentDao().insert(shopeePayMorning))
+    }
+
+    @Test
+    fun concurrentDuplicateInsertCreatesExactlyOneRow() = runBlocking {
+        val duplicate = payment("same-notification", ObservedApp.SHOPEE_PAY_PACKAGE, dateTime(9, 0))
+
+        val results = List(20) {
+            async(Dispatchers.IO) { database.paymentDao().insert(duplicate) }
+        }.awaitAll()
+
+        assertEquals(1, results.count { it != -1L })
+        assertEquals(19, results.count { it == -1L })
+        assertEquals(listOf("same-notification"), database.paymentDao().observeAll().first().map { it.id })
     }
 
     @Test

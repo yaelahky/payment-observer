@@ -103,6 +103,28 @@ menulis token admin ke log, Room, Compose UI state, atau plain `SharedPreference
 10. Error jaringan menghasilkan exponential backoff. Session tidak tersedia menghasilkan worker
     sukses tanpa menghapus record; login berikutnya menjadwalkan ulang seluruh pending payment.
 
+### Mode always-on
+
+`ObserverForegroundService` menjaga proses tetap foreground setelah akses notifikasi diberikan dan
+menampilkan notifikasi status berprioritas rendah. Service ini tidak membaca, mem-parsing, menyimpan,
+atau menjadwalkan sinkronisasi payment. `ObserverBootReceiver` hanya menyalakan kembali service
+setelah reboot atau update APK jika notification access masih aktif.
+
+Seluruh ingest tetap memiliki tepat satu jalur:
+
+```text
+ShopeePayNotificationListenerService -> PaymentNotificationIngestor -> Room -> WorkManager
+```
+
+Callback normal dan pemindaian `activeNotifications` setelah listener reconnect memakai ingestor
+yang sama dan diserialisasi. ID deterministik tetap berasal dari package, notification key, dan
+`postTime`; primary key Room dengan `OnConflictStrategy.IGNORE` memastikan notifikasi identik hanya
+tersimpan sekali. Sinkronisasi hanya dijadwalkan ketika insert pertama berhasil.
+
+Dashboard menampilkan status foreground service, koneksi listener, izin notifikasi status,
+pengecualian optimasi baterai, dan panduan auto-start sesuai OEM. `Force stop` eksplisit tetap
+memerlukan aplikasi dibuka kembali karena merupakan batas platform Android.
+
 WorkManager menggunakan unique work `payment-observer-pending-sync`. Logout hanya menghapus session
 terenkripsi. Tidak ada tombol, DAO, atau repository operation untuk menghapus transaksi.
 
@@ -279,6 +301,9 @@ data/
 network/
   PaymentObserverApi.kt           Login, refresh, profile, ingest, status
 service/
+  ObserverForegroundService.kt      Foreground lifecycle tanpa akses data payment
+  ObserverBootReceiver.kt           Pemulihan service setelah reboot/update
+  PaymentNotificationIngestor.kt    Jalur ingest tunggal dan serialisasi callback
   ShopeePayNotificationListenerService.kt Notification listener component
 sync/
   PaymentSyncRepository.kt        Orkestrasi upload dan rekonsiliasi

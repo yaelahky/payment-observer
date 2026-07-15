@@ -14,6 +14,9 @@ import com.fgteam.paymentobserver.network.PaymentObserverApi
 import com.fgteam.paymentobserver.sync.PaymentSyncRepository
 import com.fgteam.paymentobserver.sync.PaymentSyncScheduler
 import com.fgteam.paymentobserver.sync.SyncOutcome
+import com.fgteam.paymentobserver.service.ObserverRuntime
+import com.fgteam.paymentobserver.service.ObserverRuntimeState
+import com.fgteam.paymentobserver.util.ObserverSetupStatus
 import java.time.LocalDate
 import java.time.LocalDateTime
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,7 +35,7 @@ class PaymentsViewModel(
     private val syncRepository: PaymentSyncRepository,
     private val scheduleSync: () -> Unit
 ) : ViewModel() {
-    private val accessGranted = MutableStateFlow(false)
+    private val observerSetup = MutableStateFlow(ObserverSetupStatus())
     private val selectedPackageName = MutableStateFlow<String?>(null)
     private val currentDay = MutableStateFlow(LocalDate.now())
     private val transientState = MutableStateFlow(TransientState())
@@ -42,15 +45,26 @@ class PaymentsViewModel(
         repository.observeTotalBetween(day.atStartOfDay(), day.plusDays(1).atStartOfDay())
     }
 
+    private val observerHealth = combine(
+        observerSetup,
+        ObserverRuntime.state
+    ) { setup, runtime -> ObserverHealth(setup, runtime) }
+
     private val paymentsState = combine(
         payments,
         totalToday,
         repository.observeApps(),
-        accessGranted,
+        observerHealth,
         selectedPackageName
-    ) { paymentList, total, apps, granted, selectedPackage ->
+    ) { paymentList, total, apps, observer, selectedPackage ->
         PaymentsUiState(
-            hasNotificationAccess = granted,
+            hasNotificationAccess = observer.setup.hasNotificationAccess,
+            isForegroundServiceRunning = observer.runtime.isForegroundServiceRunning,
+            isListenerConnected = observer.runtime.isListenerConnected,
+            canPostNotifications = observer.setup.canPostNotifications,
+            isIgnoringBatteryOptimizations = observer.setup.isIgnoringBatteryOptimizations,
+            oemPowerGuide = observer.setup.oemPowerGuide,
+            isOemSetupAcknowledged = observer.setup.isOemSetupAcknowledged,
             totalToday = total,
             observedApps = apps,
             selectedPackageName = selectedPackage,
@@ -93,8 +107,8 @@ class PaymentsViewModel(
         }
     }
 
-    fun onResume(hasNotificationAccess: Boolean) {
-        accessGranted.value = hasNotificationAccess
+    fun onResume(status: ObserverSetupStatus) {
+        observerSetup.value = status
         currentDay.value = LocalDate.now()
     }
 
@@ -168,6 +182,11 @@ class PaymentsViewModel(
         val authError: String? = null,
         val isSyncing: Boolean = false,
         val syncMessage: String? = null
+    )
+
+    private data class ObserverHealth(
+        val setup: ObserverSetupStatus,
+        val runtime: ObserverRuntimeState
     )
 
     companion object {

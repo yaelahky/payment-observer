@@ -23,6 +23,10 @@ class PaymentsContentTest {
                 PaymentsContent(
                     uiState = PaymentsUiState(
                         hasNotificationAccess = true,
+                        isForegroundServiceRunning = true,
+                        isListenerConnected = true,
+                        canPostNotifications = true,
+                        isIgnoringBatteryOptimizations = true,
                         totalToday = 20_000,
                         observedApps = listOf(
                             ObservedApp("com.shopeepay.id", "ShopeePay", false, 1, now, now),
@@ -39,6 +43,8 @@ class PaymentsContentTest {
         composeRule.onNodeWithTag("today_total").assertIsDisplayed()
         composeRule.onNodeWithText("Rp20.000").assertIsDisplayed()
         composeRule.onNodeWithText("Akses notifikasi aktif").assertIsDisplayed()
+        composeRule.onNodeWithText("Service always-on aktif").assertIsDisplayed()
+        composeRule.onNodeWithText("Listener terhubung").assertIsDisplayed()
         composeRule.onNodeWithTag("switch_com.shopeepay.id").assertIsOff()
         composeRule.onNodeWithTag("switch_com.shopee.id").assertIsOff()
     }

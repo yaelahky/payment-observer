@@ -1,5 +1,10 @@
 package com.fgteam.paymentobserver.ui.payments
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -48,11 +53,15 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.core.content.ContextCompat
 import com.fgteam.paymentobserver.data.IncomingPayment
 import com.fgteam.paymentobserver.data.LocalDateTimeConverter
 import com.fgteam.paymentobserver.data.ObservedApp
 import com.fgteam.paymentobserver.ui.theme.PaymentObserverTheme
 import com.fgteam.paymentobserver.util.NotificationAccess
+import com.fgteam.paymentobserver.service.ObserverForegroundService
+import com.fgteam.paymentobserver.util.OemPowerGuide
+import com.fgteam.paymentobserver.util.ObserverSetup
 import java.text.NumberFormat
 import java.time.LocalDateTime
 import java.util.Locale
@@ -64,10 +73,20 @@ fun PaymentsScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    fun refreshObserverStatus() {
+        val status = ObserverSetup.status(context)
+        if (status.hasNotificationAccess) {
+            runCatching { ObserverForegroundService.start(context) }
+        }
+        viewModel.onResume(status)
+    }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { refreshObserverStatus() }
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.onResume(NotificationAccess.isEnabled(context))
+                refreshObserverStatus()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -89,6 +108,24 @@ fun PaymentsScreen(
         else -> PaymentsContent(
             uiState = uiState,
             onGrantAccess = { context.startActivity(NotificationAccess.settingsIntent()) },
+            onEnableNotifications = {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    ObserverSetup.openAppNotificationSettings(context)
+                }
+            },
+            onDisableBatteryOptimization = { ObserverSetup.openBatteryExemption(context) },
+            onOpenOemSettings = { guide -> ObserverSetup.openOemPowerSettings(context, guide) },
+            onConfirmOemSetup = {
+                ObserverSetup.acknowledgeOemSetup(context)
+                refreshObserverStatus()
+            },
             onSelectPackage = viewModel::selectPackage,
             onAppEnabledChange = viewModel::setAppEnabled,
             onLogout = viewModel::logout,
@@ -151,11 +188,15 @@ private fun LoginContent(
 internal fun PaymentsContent(
     uiState: PaymentsUiState,
     onGrantAccess: () -> Unit,
+    modifier: Modifier = Modifier,
+    onEnableNotifications: () -> Unit = {},
+    onDisableBatteryOptimization: () -> Unit = {},
+    onOpenOemSettings: (OemPowerGuide) -> Unit = {},
+    onConfirmOemSetup: () -> Unit = {},
     onSelectPackage: (String?) -> Unit,
     onAppEnabledChange: (String, Boolean) -> Unit,
     onLogout: () -> Unit = {},
-    onSync: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onSync: () -> Unit = {}
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -179,8 +220,12 @@ internal fun PaymentsContent(
             item { TodayTotalCard(uiState.totalToday) }
             item {
                 ListenerStatusCard(
-                    hasAccess = uiState.hasNotificationAccess,
-                    onGrantAccess = onGrantAccess
+                    uiState = uiState,
+                    onGrantAccess = onGrantAccess,
+                    onEnableNotifications = onEnableNotifications,
+                    onDisableBatteryOptimization = onDisableBatteryOptimization,
+                    onOpenOemSettings = onOpenOemSettings,
+                    onConfirmOemSetup = onConfirmOemSetup
                 )
             }
             item {
@@ -247,25 +292,84 @@ private fun TodayTotalCard(totalToday: Long) {
 }
 
 @Composable
-private fun ListenerStatusCard(hasAccess: Boolean, onGrantAccess: () -> Unit) {
+private fun ListenerStatusCard(
+    uiState: PaymentsUiState,
+    onGrantAccess: () -> Unit,
+    onEnableNotifications: () -> Unit,
+    onDisableBatteryOptimization: () -> Unit,
+    onOpenOemSettings: (OemPowerGuide) -> Unit,
+    onConfirmOemSetup: () -> Unit
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Status listener", style = MaterialTheme.typography.titleMedium)
-            Text(
-                if (hasAccess) "Akses notifikasi aktif" else "Akses notifikasi belum aktif",
-                color = if (hasAccess) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.error,
-                fontWeight = FontWeight.SemiBold
+            Text("Status always-on", style = MaterialTheme.typography.titleMedium)
+            ObserverStatusLine(
+                ready = uiState.hasNotificationAccess,
+                readyText = "Akses notifikasi aktif",
+                missingText = "Akses notifikasi belum aktif"
             )
-            if (!hasAccess) {
+            if (!uiState.hasNotificationAccess) {
                 Text("Aktifkan akses agar aplikasi dapat membaca notifikasi pembayaran.")
                 Button(onClick = onGrantAccess) { Text("Buka Pengaturan Akses Notifikasi") }
             }
+            ObserverStatusLine(
+                ready = uiState.isForegroundServiceRunning,
+                readyText = "Service always-on aktif",
+                missingText = "Service always-on belum aktif"
+            )
+            ObserverStatusLine(
+                ready = uiState.isListenerConnected,
+                readyText = "Listener terhubung",
+                missingText = "Listener sedang menghubungkan ulang"
+            )
+            ObserverStatusLine(
+                ready = uiState.canPostNotifications,
+                readyText = "Notifikasi status diizinkan",
+                missingText = "Notifikasi status belum diizinkan"
+            )
+            if (!uiState.canPostNotifications) {
+                Button(onClick = onEnableNotifications) { Text("Izinkan Notifikasi Status") }
+            }
+            ObserverStatusLine(
+                ready = uiState.isIgnoringBatteryOptimizations,
+                readyText = "Optimasi baterai dinonaktifkan",
+                missingText = "Optimasi baterai masih aktif"
+            )
+            if (!uiState.isIgnoringBatteryOptimizations) {
+                Button(onClick = onDisableBatteryOptimization) {
+                    Text("Izinkan Berjalan Tanpa Batas")
+                }
+            }
+            uiState.oemPowerGuide?.let { guide ->
+                ObserverStatusLine(
+                    ready = uiState.isOemSetupAcknowledged,
+                    readyText = "Pengaturan ${guide.name} sudah dikonfirmasi",
+                    missingText = "Periksa pengaturan ${guide.name}"
+                )
+                if (!uiState.isOemSetupAcknowledged) {
+                    Text(guide.instructions)
+                    Button(onClick = { onOpenOemSettings(guide) }) {
+                        Text("Buka Pengaturan Perangkat")
+                    }
+                    TextButton(onClick = onConfirmOemSetup) {
+                        Text("Saya Sudah Mengaktifkannya")
+                    }
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun ObserverStatusLine(ready: Boolean, readyText: String, missingText: String) {
+    Text(
+        text = if (ready) readyText else missingText,
+        color = if (ready) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+        fontWeight = FontWeight.SemiBold
+    )
 }
 
 @Composable
@@ -407,6 +511,10 @@ private fun PaymentsContentPreview() {
         PaymentsContent(
             uiState = PaymentsUiState(
                 hasNotificationAccess = true,
+                isForegroundServiceRunning = true,
+                isListenerConnected = true,
+                canPostNotifications = true,
+                isIgnoringBatteryOptimizations = true,
                 totalToday = 10_000,
                 observedApps = apps,
                 payments = listOf(
