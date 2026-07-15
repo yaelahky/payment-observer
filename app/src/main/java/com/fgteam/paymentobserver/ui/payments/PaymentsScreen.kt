@@ -108,6 +108,7 @@ import com.fgteam.paymentobserver.ui.theme.ObserverPurpleDark
 import com.fgteam.paymentobserver.ui.theme.ObserverPurpleSoft
 import com.fgteam.paymentobserver.ui.theme.ObserverRed
 import com.fgteam.paymentobserver.ui.theme.ObserverRedSoft
+import com.fgteam.paymentobserver.ui.theme.ObserverShopee
 import com.fgteam.paymentobserver.ui.theme.PaymentObserverTheme
 import com.fgteam.paymentobserver.util.NotificationAccess
 import com.fgteam.paymentobserver.util.OemPowerGuide
@@ -942,6 +943,7 @@ private fun AppConfigurationCard(
                         text = app.appName,
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.SemiBold,
+                        color = appAccentColor(app),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
@@ -995,12 +997,14 @@ private fun PaymentFilters(
         ObserverFilterChip(
             selected = selectedPackageName == null,
             label = "Semua",
+            accentColor = ObserverPurple,
             onClick = { onSelectPackage(null) }
         )
         apps.forEach { app ->
             ObserverFilterChip(
                 selected = selectedPackageName == app.packageName,
                 label = app.appName,
+                accentColor = appAccentColor(app),
                 onClick = { onSelectPackage(app.packageName) }
             )
         }
@@ -1009,7 +1013,12 @@ private fun PaymentFilters(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ObserverFilterChip(selected: Boolean, label: String, onClick: () -> Unit) {
+private fun ObserverFilterChip(
+    selected: Boolean,
+    label: String,
+    accentColor: Color,
+    onClick: () -> Unit
+) {
     FilterChip(
         selected = selected,
         onClick = onClick,
@@ -1017,15 +1026,15 @@ private fun ObserverFilterChip(selected: Boolean, label: String, onClick: () -> 
         shape = RoundedCornerShape(50),
         colors = FilterChipDefaults.filterChipColors(
             containerColor = MaterialTheme.colorScheme.surface,
-            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            selectedContainerColor = ObserverPurple,
+            labelColor = accentColor,
+            selectedContainerColor = accentColor,
             selectedLabelColor = Color.White
         ),
         border = FilterChipDefaults.filterChipBorder(
             enabled = true,
             selected = selected,
             borderColor = ObserverBorder,
-            selectedBorderColor = ObserverPurple
+            selectedBorderColor = accentColor
         )
     )
 }
@@ -1085,6 +1094,7 @@ private fun PaymentCard(payment: IncomingPayment) {
                     text = payment.appName,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
+                    color = accent,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
@@ -1303,9 +1313,14 @@ private fun appAccentColor(app: ObservedApp): Color =
     appAccentColor(app.appName, app.packageName)
 
 private fun appAccentColor(appName: String, packageName: String): Color = when {
-    packageName.contains("bni", ignoreCase = true) -> ObserverOrange
+    packageName.equals(ObservedApp.SHOPEE_PARTNER_PACKAGE, ignoreCase = true) -> ObserverBlue
+    packageName.equals(ObservedApp.SHOPEE_PAY_PACKAGE, ignoreCase = true) -> ObserverPurple
+    packageName.equals(ObservedApp.SHOPEE_PACKAGE, ignoreCase = true) -> ObserverShopee
+    packageName.equals(ObservedApp.BNI_MERCHANT_PACKAGE, ignoreCase = true) -> ObserverOrange
     appName.contains("partner", ignoreCase = true) -> ObserverBlue
-    packageName.contains("shopee", ignoreCase = true) -> ObserverPurple
+    appName.contains("shopeepay", ignoreCase = true) -> ObserverPurple
+    appName.equals("Shopee", ignoreCase = true) -> ObserverShopee
+    packageName.contains("bni", ignoreCase = true) -> ObserverOrange
     else -> ObserverGreen
 }
 
