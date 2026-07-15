@@ -2,10 +2,20 @@ package com.fgteam.paymentobserver.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+val ObserverPurple = Color(0xFF6558E8)
+val ObserverPurpleDark = Color(0xFF4F43D3)
+val ObserverPurpleSoft = Color(0xFFEEE9FF)
+val ObserverBackground = Color(0xFFF7F8FC)
+val ObserverSurface = Color(0xFFFFFFFF)
+val ObserverBorder = Color(0xFFE7E9F2)
+val ObserverText = Color(0xFF171826)
+val ObserverTextMuted = Color(0xFF6F7483)
 
-val Purple40 = Color(0xFF6650A4)
-val PurpleGrey40 = Color(0xFF625B71)
-val Pink40 = Color(0xFF7D5260)
+val ObserverGreen = Color(0xFF168A4A)
+val ObserverGreenSoft = Color(0xFFDCF7E8)
+val ObserverBlue = Color(0xFF2670C9)
+val ObserverBlueSoft = Color(0xFFE7F1FF)
+val ObserverOrange = Color(0xFFC66A13)
+val ObserverOrangeSoft = Color(0xFFFFF0DD)
+val ObserverRed = Color(0xFFBA3A3A)
+val ObserverRedSoft = Color(0xFFFFE5E5)
